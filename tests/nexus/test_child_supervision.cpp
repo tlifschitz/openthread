@@ -600,6 +600,89 @@ void TestChildSupervisionTimeoutChangesDuringBetterParentSearch(void)
     VerifyOrQuit(sed.Get<SupervisionListener>().GetCounter() > 0);
 }
 
+void TestChildSupervisionDiscoveryScanOverlappingBetterParentSearch(void)
+{
+    static constexpr uint16_t kCheckTimeout        = 25;        // (seconds)
+    static constexpr uint16_t kSupervisionInterval = 10;        // (seconds)
+    static constexpr uint32_t kWaitTime            = 10 * 1000; // (msec)
+
+    Core nexus;
+
+    Node &leader = nexus.CreateNode();
+    Node &sed    = nexus.CreateNode();
+
+    leader.SetName("LEADER");
+    sed.SetName("SED");
+
+    nexus.AdvanceTime(0);
+
+    SuccessOrQuit(Instance::SetGlobalLogLevel(kLogLevelInfo));
+
+    Log("---------------------------------------------------------------------------------------");
+    Log("Form network and attach SED");
+
+    leader.Form();
+    nexus.AdvanceTime(15 * 1000);
+    VerifyOrQuit(leader.Get<Mle::Mle>().IsLeader());
+
+    // A parent sending supervision messages more often than the check timeout keeps the check from firing, so only
+    // losing the parent fires it.
+    sed.Get<SupervisionListener>().SetInterval(kSupervisionInterval);
+
+    sed.Join(leader, Node::kAsSed);
+    nexus.AdvanceTime(5 * 1000);
+    VerifyOrQuit(sed.Get<Mle::Mle>().IsChild());
+
+    SuccessOrQuit(sed.Get<DataPollSender>().SetExternalPollPeriod(500));
+    sed.Get<SupervisionListener>().SetTimeout(kCheckTimeout);
+
+    // The discovery scanner and the attacher both suspend sleepy operation. Whichever ends last, the child must end
+    // up sleepy with a running supervision check.
+
+    Log("---------------------------------------------------------------------------------------");
+    Log("Run a discovery scan that ends during a better parent search");
+
+    SuccessOrQuit(sed.Get<Mle::Mle>().SearchForBetterParent());
+    nexus.AdvanceTime(100);
+    VerifyOrQuit(sed.Get<Mle::Mle>().IsAttaching());
+
+    StartDiscoverScan(sed, leader);
+    nexus.AdvanceTime(kWaitTime);
+
+    VerifyOrQuit(!sed.Get<Mle::DiscoverScanner>().IsInProgress());
+    VerifyOrQuit(!sed.Get<Mle::Mle>().IsAttaching());
+    VerifyOrQuit(sed.Get<Mle::Mle>().IsChild());
+    VerifyOrQuit(!sed.Get<Mac::Mac>().GetRxOnWhenIdle());
+
+    Log("---------------------------------------------------------------------------------------");
+    Log("Run a better parent search that ends during a discovery scan");
+
+    // Scanning all supported channels outlasts the better parent search.
+
+    SuccessOrQuit(sed.Get<Mle::DiscoverScanner>().Discover(
+        sed.Get<Mac::Mac>().GetSupportedChannelMask(), Mac::kPanIdBroadcast, /* aJoiner */ false,
+        /* aEnableFiltering */ false, /* aFilterIndexes */ nullptr, nullptr, nullptr));
+    nexus.AdvanceTime(100);
+    VerifyOrQuit(sed.Get<Mle::DiscoverScanner>().IsInProgress());
+
+    SuccessOrQuit(sed.Get<Mle::Mle>().SearchForBetterParent());
+    nexus.AdvanceTime(kWaitTime);
+
+    VerifyOrQuit(!sed.Get<Mle::DiscoverScanner>().IsInProgress());
+    VerifyOrQuit(!sed.Get<Mle::Mle>().IsAttaching());
+    VerifyOrQuit(sed.Get<Mle::Mle>().IsChild());
+    VerifyOrQuit(!sed.Get<Mac::Mac>().GetRxOnWhenIdle());
+
+    Log("---------------------------------------------------------------------------------------");
+    Log("Block traffic from child on parent");
+
+    sed.Get<SupervisionListener>().ResetCounter();
+    leader.Get<Mac::Filter>().SetMode(Mac::Filter::kModeAllowlist);
+    nexus.AdvanceTime(Time::SecToMsec(kCheckTimeout) + 10 * 1000);
+
+    VerifyOrQuit(sed.Get<SupervisionListener>().GetCounter() > 0);
+}
+
 } // namespace Nexus
 } // namespace ot
 
@@ -612,6 +695,7 @@ int main(void)
     ot::Nexus::TestChildSupervisionAfterBetterParentFound();
     ot::Nexus::TestChildSupervisionChangesDuringBetterParentSearch();
     ot::Nexus::TestChildSupervisionTimeoutChangesDuringBetterParentSearch();
+    ot::Nexus::TestChildSupervisionDiscoveryScanOverlappingBetterParentSearch();
     printf("All tests passed\n");
     return 0;
 }
