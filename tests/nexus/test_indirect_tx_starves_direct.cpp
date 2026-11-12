@@ -41,7 +41,7 @@
 namespace ot {
 namespace Nexus {
 
-static constexpr uint16_t kMaxSeds    = 60;
+static constexpr uint16_t kMaxSeds    = 120;
 static constexpr uint32_t kPollPeriod = 600;        // In milliseconds.
 static constexpr uint32_t kWindow     = 150 * 1000; // Longer than `Mle::kMaxNeighborAge` (100 s).
 
@@ -148,9 +148,9 @@ void TestNetworkDataChangeWithSlowParentTx(void)
     // the new network data, and the leader must keep sending its MLE
     // Advertisements so that the router keeps its link.
 
-    static constexpr uint16_t kNumSeds     = 60;
+    static constexpr uint16_t kNumSeds     = 120;
     static constexpr uint16_t kNumPrefixes = 10;    // Makes the Child Update Request span three fragments.
-    static constexpr uint32_t kTxLatency   = 20000; // In microseconds.
+    static constexpr uint32_t kTxLatency   = 8000;  // In microseconds.
 
     Network  network(kNumSeds);
     uint32_t broadcasts;
