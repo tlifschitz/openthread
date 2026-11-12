@@ -702,6 +702,11 @@ void Core::UpdateNextScheduledTx(const Radio &aRadio)
 
         mNextAlarmTime = Min(mNextAlarmTime, txTime);
     }
+
+    if (aRadio.mState == Radio::kStateTransmit)
+    {
+        mNextAlarmTime = Min(mNextAlarmTime, Max(aRadio.mTxTime, mNow));
+    }
 }
 
 bool Core::IsUiConnected(void) const
@@ -796,7 +801,7 @@ void Core::ProcessRadio(Node &aNode)
         }
     }
 
-    if (aNode.mRadio.mState == Radio::kStateTransmit)
+    if ((aNode.mRadio.mState == Radio::kStateTransmit) && (mNow >= aNode.mRadio.mTxTime))
     {
         ProcessRadioTx(aNode, aNode.mRadio.mTxFrame, kRegularTx);
     }

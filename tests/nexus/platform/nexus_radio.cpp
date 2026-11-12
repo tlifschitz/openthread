@@ -147,7 +147,8 @@ otError otPlatRadioTransmit(otInstance *aInstance, otRadioFrame *aFrame)
     VerifyOrExit(radio.mState == Radio::kStateReceive, error = kErrorInvalidState);
     OT_ASSERT(aFrame == &AsNode(aInstance).mRadio.mTxFrame);
 
-    radio.mState = Radio::kStateTransmit;
+    radio.mState  = Radio::kStateTransmit;
+    radio.mTxTime = Core::Get().GetNowMicro64() + radio.mTxLatency;
 
     Core::Get().MarkPendingAction();
 
@@ -401,6 +402,7 @@ void Radio::Reset(void)
     mChannel              = 0;
     mPanId                = 0;
     mScheduledTxTime      = 0;
+    mTxTime               = 0;
     mSrcMatchShortEntries.Clear();
     mSrcMatchExtEntries.Clear();
     mLinkMetricsEntries.Clear();

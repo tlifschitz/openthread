@@ -98,6 +98,8 @@ struct Radio
     uint8_t                                 mChannel;
     Mac::PanId                              mPanId;
     uint64_t                                mScheduledTxTime;
+    uint64_t                                mTxTime;        // Time (usec) the pending `mTxFrame` goes on the air.
+    uint32_t                                mTxLatency = 0; // Delay (usec) from tx request to on air. Kept on reset.
     Frame                                   mTxFrame;
     Frame                                   mScheduledTxFrame;
     otRadioIeInfo                           mTxIeInfo;
